@@ -47,7 +47,7 @@ Create an empty repo named `proofline`, then push this folder to it.
 ### 4. Unlock owner mode on your browser
 Open `https://your-link/?owner=YOUR_PASSCODE` once. That browser now has unlimited live runs and a **Save run as example** button on the last step. The passcode is removed from the address bar right away.
 
-Without keys, the app runs in **mock mode** with placeholder images, so you can test the flow for free.
+Without keys, the app runs in **practice mode** with placeholder images. You can also add `?practice=1` to your live link to click through the whole flow for free, without spending any credits.
 
 ---
 

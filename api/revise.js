@@ -2,10 +2,10 @@ import { handler, spend, MOCK, askClaude, sleep } from "./_lib.js";
 import { mockRevise } from "./_prompts.js";
 
 export default handler(async (b, req) => {
-  await spend(req, "ai");
+  const t = await spend(req, "ai");
   const { note = "", variant = {}, direction = {}, brandKit = {}, image, preview, marked } = b;
   if (!note.trim()) { const e = new Error(); e.status = 400; e.publicMessage = "Write a note first."; throw e; }
-  if (MOCK) { await sleep(700); return mockRevise(note); }
+  if (MOCK || t.mock) { await sleep(700); return mockRevise(note); }
   return await askClaude({
     system: "You are Proofline's revision agent. You turn a designer's note into concrete changes, and you are explicit about anything you can't do. You answer with JSON only.",
     images: [

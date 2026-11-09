@@ -2,9 +2,9 @@ import { handler, spend, MOCK, askClaude, sleep } from "./_lib.js";
 
 // After an image edit, Claude compares before and after against the request, so a wrong edit is caught and shown.
 export default handler(async (b, req) => {
-  await spend(req, "ai");
+  const t = await spend(req, "ai");
   const { request = "", instruction = "", before, after, marked } = b;
-  if (MOCK) { await sleep(500); return { ok: true, msg: "The change matches the request." }; }
+  if (MOCK || t.mock) { await sleep(500); return { ok: true, msg: "The change matches the request." }; }
   return await askClaude({
     system: "You are Proofline's QA reviewer. You check whether an image edit did what was asked, and nothing else. You answer with JSON only.",
     maxTokens: 600,

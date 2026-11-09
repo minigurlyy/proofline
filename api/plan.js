@@ -2,11 +2,11 @@ import { handler, spend, MOCK, askClaude, sleep } from "./_lib.js";
 import { FONT_IDS, mockPlan } from "./_prompts.js";
 
 export default handler(async (b, req) => {
-  await spend(req, "ai");
+  const t = await spend(req, "ai");
   const brief = String(b.brief || "").slice(0, 6000);
   if (brief.trim().length < 20) { const e = new Error(); e.status = 400; e.publicMessage = "Add a few sentences to the brief first."; throw e; }
   const assets = (b.assets || []).slice(0, 4);
-  if (MOCK) { await sleep(900); return mockPlan(brief, assets); }
+  if (MOCK || t.mock) { await sleep(900); return mockPlan(brief, assets); }
   const roles = assets.map((a, i) => `Image ${i + 1}: ${a.role} (${a.name || "upload"})`).join("\n") || "No images uploaded.";
   return await askClaude({
     system: "You are Proofline's planning agent. You read creative briefs for ad campaigns like a senior designer and producer. You answer with JSON only.",

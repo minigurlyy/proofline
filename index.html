@@ -18,7 +18,7 @@
 <div class="app">
 <header>
   <div class="logo"><span class="orb" aria-hidden="true"></span><b>Proofline</b></div>
-  <span class="tag">Brief to ad variants</span>
+  <span class="tag">Brief to finished ads</span>
   <nav class="steps" id="steps" aria-label="Workflow steps"></nav>
   <div class="toolbar">
     <select class="pill" id="replayPick" aria-label="Watch an example run"><option value="">Example runs</option></select>
@@ -30,88 +30,93 @@
 <!-- 1 BRIEF -->
 <section class="view" id="v1">
   <div class="vhead"><div class="kicker"><span class="who you"></span>Step 1 · Your brief</div>
-  <h2>Start with the brief. <em>Add assets if you have them.</em></h2>
-  <p class="lede">Paste a creative brief, or pick an example. Upload a product photo, logo or style references and the agent will use them.</p></div>
+  <h2>Turn your brief <em>into a set of ads.</em></h2>
+  <p class="lede">Tell us what you're promoting and who it's for. You'll review a few creative directions before any ads are made.</p></div>
   <div class="two">
     <div class="card">
-      <h3>Brief</h3>
-      <div class="examples" id="exBriefs"></div>
-      <textarea id="brief" aria-label="Creative brief" placeholder="Who is launching what, when, for whom, the key message, the offer, any lines the ads must include, the tone and the formats you need."></textarea>
+      <span class="eyebrow">Brief</span>
+      <h3>What are you promoting?</h3>
+      <div class="examples"><span class="hint">Try an example:</span><span id="exBriefs" class="examples" style="margin:0"></span></div>
+      <textarea id="brief" aria-label="Creative brief" placeholder="For example: what you're launching and when, who it's for, the one thing people should remember, any offer, lines the ads must include, and the tone you want."></textarea>
     </div>
     <div class="card">
-      <h3>Assets <span class="chip">optional</span></h3>
-      <label class="drop" id="drop" for="fileIn">Drop images here, or click to upload<br><small>Product photo, logo, or style references · up to 4</small></label>
+      <span class="eyebrow">Assets · optional</span>
+      <h3>Product photos, logos, or references</h3>
+      <label class="drop" id="drop" for="fileIn"><span class="dropicon" aria-hidden="true">＋</span><b>Drop images here or <u>choose files</u></b></label>
+      <p class="hint" style="margin:10px 0 0">Add up to 4 images. Use a product photo to show what you're selling, a logo for branding, or a reference to guide the look.</p>
       <input type="file" id="fileIn" accept="image/png,image/jpeg,image/webp" multiple hidden>
       <div class="assets" id="assets"></div>
-      <p class="hint" style="margin-top:14px">A product photo keeps the product accurate in every image. A logo replaces the typed brand name on the ads.</p>
     </div>
   </div>
-  <div class="bar"><button class="btn" id="readBrief">Read brief</button><span class="hint" id="briefHint"></span></div>
+  <div class="bar"><button class="btn" id="readBrief">Create a plan</button><span class="hint" id="briefHint"></span></div>
 </section>
 
 <!-- 2 PLAN -->
 <section class="view" id="v2">
-  <div class="vhead"><div class="kicker"><span class="who you"></span>Checkpoint 1 · You confirm the plan</div>
-  <h2>Here's what the agent understood. <em>Check it before anything gets made.</em></h2>
-  <p class="lede">Fix the brand kit if it's off, and answer anything the agent wasn't sure about.</p></div>
+  <div class="vhead"><div class="kicker"><span class="who you"></span>Step 2 · Check the plan</div>
+  <h2>Here's the plan. <em>Check it before anything is made.</em></h2>
+  <p class="lede">We pulled the key details from your brief and picked colors and fonts to match. Change anything that's off, and answer any questions.</p></div>
   <div class="two">
-    <div class="card"><h3><span class="who agent"></span>The brief, structured</h3><dl class="fields" id="planFields"></dl><div id="assetsRead"></div></div>
-    <div class="card"><h3><span class="who agent"></span>Brand kit</h3><div id="kit"></div><div id="questions"></div>
-      <div class="q"><p><span class="chip agent">formats</span> Which formats should it make?</p><div class="opts" id="fmtOpts"></div></div>
+    <div class="card"><h3><span class="who agent"></span>What we understood</h3><dl class="fields" id="planFields"></dl><div id="assetsRead"></div></div>
+    <div class="card"><h3><span class="who agent"></span>Colors and fonts</h3><div id="kit"></div><div id="questions"></div>
+      <div class="q"><p><span class="chip agent">sizes</span> Which ad sizes do you need?</p><div class="opts" id="fmtOpts"></div></div>
     </div>
   </div>
-  <div class="bar"><button class="btn" id="confirmPlan">Confirm plan</button><span class="hint" id="planHint"></span></div>
+  <div class="bar"><button class="btn" id="confirmPlan">Show me directions</button><span class="hint" id="planHint"></span></div>
 </section>
 
 <!-- 3 DIRECTIONS -->
 <section class="view" id="v3">
-  <div class="vhead"><div class="kicker"><span class="who you"></span>Checkpoint 2 · You choose and steer</div>
-  <h2>Three directions, <em>each with a plan.</em></h2>
-  <p class="lede">Each direction comes with its copy and a plan for which model makes it and why. Drop any you don't want, or add a note to steer one before it's made.</p></div>
+  <div class="vhead"><div class="kicker"><span class="who you"></span>Step 3 · Pick your directions</div>
+  <h2>Three ideas to choose from. <em>Steer them before they're made.</em></h2>
+  <p class="lede">Each idea has its own headline and look. Turn off any you don't want, or add a note like "warmer light" to adjust one.</p></div>
   <div class="dirs" id="dirs"></div>
   <div class="bar"><button class="btn" id="genBtn">Generate</button><span class="hint" id="genHint"></span></div>
 </section>
 
 <!-- 4 GENERATE -->
 <section class="view" id="v4">
-  <div class="vhead"><div class="kicker"><span class="who agent"></span>The agent is working</div>
-  <h2>Making options, <em>picking the strongest.</em></h2>
-  <p class="lede">Two candidates per direction, scored by Claude for brand fit, craft and room for the copy. The winner is then recomposed into every format so the scene stays consistent.</p></div>
+  <div class="vhead"><div class="kicker"><span class="who agent"></span>Step 4 · Making your ads</div>
+  <h2>Making your ads, <em>keeping the best of each.</em></h2>
+  <p class="lede">For each idea we make two images, keep the stronger one, then resize it for every format so they all match. This takes about a minute.</p></div>
   <div class="gen" id="gen" style="max-width:900px"></div>
-  <div class="bar"><button class="btn" id="toReview" disabled>Review variants</button></div>
+  <div class="bar"><button class="btn" id="toReview" disabled>Review your ads</button></div>
 </section>
 
 <!-- 5 REVIEW -->
 <section class="view" id="v5">
-  <div class="vhead"><div class="kicker"><span class="who you"></span>Checkpoint 3 · You approve the work</div>
-  <h2>Riskiest first. <em>Clean work in one click.</em></h2>
-  <p class="lede">Flags explain themselves. The agent fixes the mechanical ones; taste and claims are your call. Notes are read by Claude and every part is either done or named as not done.</p></div>
+  <div class="vhead"><div class="kicker"><span class="who you"></span>Step 5 · Review and approve</div>
+  <h2>Ads that need you come first. <em>Approve the rest in one click.</em></h2>
+  <p class="lede">Some issues we can fix for you; others are your call. Click an ad to see it large, and ask for any change in your own words.</p></div>
   <div class="rhead" id="rhead"></div>
   <div class="rgrid"><div class="grid" id="grid"></div><div class="detail" id="detail"></div></div>
 </section>
 
 <!-- 6 DELIVER -->
 <section class="view" id="v6">
-  <div class="vhead"><div class="kicker"><span class="who agent"></span>Delivered</div>
-  <h2>Approved and packaged. <em>Ready for handoff.</em></h2>
-  <p class="lede">The agent did the multiplying. You made the calls.</p></div>
+  <div class="vhead"><div class="kicker"><span class="who agent"></span>Step 6 · Download</div>
+  <h2>Your ads are ready. <em>Download them all at once.</em></h2>
+  <p class="lede">Every ad is saved at full size for its platform, with a short summary for whoever runs them.</p></div>
   <div class="stats" id="stats"></div>
-  <div class="card"><h3>Export package</h3><div style="overflow-x:auto"><table id="pkg"></table></div></div>
+  <div class="card"><h3>Your files</h3><div style="overflow-x:auto"><table id="pkg"></table></div></div>
   <div class="bar">
     <select class="pill" id="fileType" aria-label="File type"><option value="png">PNG</option><option value="jpeg">JPG</option></select>
-    <button class="btn" id="dlZip">Download package (.zip)</button>
-    <button class="btn ghost" id="copySum">Copy handoff summary</button>
+    <button class="btn" id="dlZip">Download all (.zip)</button>
+    <button class="btn ghost" id="copySum">Copy summary</button>
     <button class="btn ghost" id="saveRun" hidden>Save run as example</button>
-    <button class="btn ghost" id="restart">Start a new brief</button>
+    <button class="btn ghost" id="restart">Start over</button>
     <span class="hint" id="dlHint"></span>
   </div>
 </section>
 </main>
 
-<aside aria-label="Run log">
-  <div class="loghead"><h3>Run log</h3><div class="counts"><span id="cAgent">agent 0</span><span id="cYou">you 0</span></div></div>
-  <ol class="log" id="log"></ol>
-  <div class="foot" id="logFoot">Every agent step and every decision you make is logged here.</div>
+<aside aria-label="Example and activity">
+  <div id="showcase" class="showcase"></div>
+  <div id="activity" class="activity" hidden>
+    <div class="loghead"><h3>Activity</h3><div class="counts"><span id="cAgent" hidden></span><span id="cYou" hidden></span></div></div>
+    <ol class="log" id="log"></ol>
+    <div class="foot" id="logFoot">Everything we do, and every choice you make, shows up here.</div>
+  </div>
 </aside>
 </div>
 <div id="stage" aria-hidden="true" style="position:fixed;left:-20000px;top:0;pointer-events:none"></div>

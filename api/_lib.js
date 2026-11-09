@@ -72,17 +72,18 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export async function openSession(b, req) {
   const owner = !!env.OWNER_PASSCODE && b.passcode === env.OWNER_PASSCODE;
+  const practice = MOCK || b.practice === true;
   const perDay = Number(env.LIVE_RUNS_PER_DAY || 20), perIp = Number(env.LIVE_RUNS_PER_IP || 2);
   let left = null;
-  if (!owner && !MOCK) {
+  if (!owner && !practice) {
     const d = today(), ip = crypto.createHash("sha256").update(ipOf(req)).digest("hex").slice(0, 16);
     const n = await incr(`live:${d}`, 86400), m = await incr(`live:${d}:${ip}`, 86400);
     if (n > perDay) throw fail(429, "Today's live runs are used up. Watch an example run, or come back tomorrow.");
     if (m > perIp) throw fail(429, `You've used your ${perIp} live runs for today. Watch an example run, or come back tomorrow.`);
     left = Math.max(0, perIp - m);
   }
-  const token = sign({ id: crypto.randomUUID(), owner, exp: Date.now() + 3600e3, img: owner ? 1e6 : 24, ai: owner ? 1e6 : 30 });
-  return { token, owner, mode: MOCK ? "mock" : "live", left, limits: { perDay, perIp }, persistentLimits: !!redis, models: MODELS };
+  const token = sign({ id: crypto.randomUUID(), owner, mock: practice, exp: Date.now() + 3600e3, img: owner ? 1e6 : 24, ai: owner ? 1e6 : 30 });
+  return { token, owner, mode: practice ? "mock" : "live", left, limits: { perDay, perIp }, persistentLimits: !!redis, models: MODELS };
 }
 export async function spend(req, kind) {
   const t = verify(req.headers["x-run-token"]);
@@ -110,10 +111,17 @@ export function extractJson(t) {
 }
 export async function askClaude({ system, text, images = [], maxTokens = 4000 }) {
   try { return await askClaudeOnce({ system, text, images, maxTokens }); }
-  catch (e) { if (e.status === 401 || e.status === 429) throw e; console.warn("Claude retry:", e.message); return await askClaudeOnce({ system, text, images, maxTokens: Math.round(maxTokens * 1.6) }); }
+  catch (e) {
+    if (e.status === 401 || e.status === 429 || e.publicMessage?.includes("credits")) throw e;
+    if (/credit balance|billing|insufficient/i.test(e.message || "")) throw fail(402, "Proofline is out of Claude credits right now. (Owner: add credits in the Claude Console.)");
+    console.warn("Claude retry:", e.message); return await askClaudeOnce({ system, text, images, maxTokens: Math.round(maxTokens * 1.6) }); }
 }
 async function askClaudeOnce({ system, text, images, maxTokens }) {
   const c = await claudeClient();
+  try { return await callClaude(c, { system, text, images, maxTokens }); }
+  catch (e) { if (/credit balance|billing|insufficient/i.test(e.message || "")) throw fail(402, "Proofline is out of Claude credits right now. (Owner: add credits in the Claude Console.)"); throw e; }
+}
+async function callClaude(c, { system, text, images, maxTokens }) {
   const content = [];
   for (const im of images) { const p = parseDataUrl(im.data || im); if (p) { if (im.label) content.push({ type: "text", text: im.label }); content.push({ type: "image", source: { type: "base64", ...p } }); } }
   content.push({ type: "text", text });
@@ -159,7 +167,9 @@ export async function falImage({ prompt, fmt, refs = [], seed }) {
   let r;
   for (let attempt = 0; attempt < 2 && !r; attempt++) {
     try { r = await fal.subscribe(model, { input, logs: false }); }
-    catch (e) { console.error(e); if (attempt === 1) throw fail(502, "The image model didn't respond twice in a row. Try again in a moment."); }
+    catch (e) { console.error(e);
+      const m = `${e.status || ""} ${e.message || ""} ${JSON.stringify(e.body || "")}`;
+      if (/exhausted balance|insufficient|credit|locked|\b402\b/i.test(m)) throw fail(402, "Proofline is out of image credits right now. (Owner: add credits in your fal dashboard.)"); if (attempt === 1) throw fail(502, "The image model didn't respond twice in a row. Try again in a moment."); }
   }
   const img = r?.data?.images?.[0];
   if (!img?.url) throw fail(502, "The image model returned no image. Try a different note or try again.");

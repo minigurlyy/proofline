@@ -1,9 +1,9 @@
 import { handler, spend, MOCK, askClaude, sleep } from "./_lib.js";
 
 export default handler(async (b, req) => {
-  await spend(req, "ai");
+  const t = await spend(req, "ai");
   const { images = [], direction = {}, brandKit = {}, product } = b;
-  if (MOCK) { await sleep(800); return { scores: images.map((_, i) => ({ score: 8 - i, why: i ? "Busier copy area." : "Calm space for the headline, palette on brand." })), best: 0, issues: direction.id === "C" ? [{ kind: "fix", label: "Copy area", msg: "Bright highlights sit where the headline goes.", fix: "Calm and darken the area where the headline sits; keep everything else the same." }] : [] }; }
+  if (MOCK || t.mock) { await sleep(800); return { scores: images.map((_, i) => ({ score: 8 - i, why: i ? "Busier copy area." : "Calm space for the headline, palette on brand." })), best: 0, issues: direction.id === "C" ? [{ kind: "fix", label: "Copy area", msg: "Bright highlights sit where the headline goes.", fix: "Calm and darken the area where the headline sits; keep everything else the same." }] : [] }; }
   const imgs = images.slice(0, 3).map((d, i) => ({ label: `Candidate ${i + 1}`, data: d }));
   if (product) imgs.push({ label: "Reference: the real product photo", data: product });
   return await askClaude({

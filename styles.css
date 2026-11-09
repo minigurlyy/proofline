@@ -253,3 +253,67 @@ body.record .tag,body.record #ownerChip{display:none}
 .lbv.on{border-color:var(--you);color:var(--ink)}
 .lbfoot{display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
 .lb.busy .lbpanel{opacity:.6;pointer-events:none}
+
+/* ===== v2.2: hidden fix, copy hierarchy, example panel ===== */
+[hidden]{display:none!important}
+.eyebrow{display:block;font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:#a3a19b;margin-bottom:4px}
+.card h3{font:600 19px/1.25 var(--display);letter-spacing:-.01em}
+.examples{align-items:center}
+.drop{display:grid;justify-items:center;gap:8px;padding:26px 16px}
+.drop b{font-weight:500;color:var(--ink)}.drop u{text-decoration-color:var(--agent);text-underline-offset:3px}
+.dropicon{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#fff;border:1px solid var(--line);font-size:18px;color:var(--mute);transition:transform .3s cubic-bezier(.2,.7,.2,1),color .2s,border-color .2s}
+.drop:hover .dropicon,.drop.over .dropicon{transform:rotate(90deg) scale(1.08);color:var(--agent);border-color:#cfd9f6}
+details.how summary{cursor:pointer;font:500 12.5px var(--body);color:var(--agent);list-style:none}
+details.how summary::-webkit-details-marker{display:none}
+details.how summary::before{content:"›";display:inline-block;margin-right:6px;transition:transform .2s}
+details.how[open] summary::before{transform:rotate(90deg)}
+details.how ul{margin-top:8px}
+.showcase{padding:18px;overflow:auto;display:flex;flex-direction:column;gap:12px;flex:1}
+.activity{display:flex;flex-direction:column;min-height:0;flex:1}
+.sch{font:600 18px/1.2 var(--display);letter-spacing:-.01em;margin:0}
+.scbrief{margin:0;font:400 13px/1.5 var(--body);color:var(--mute);background:#f6f5f2;border-radius:12px;padding:10px 12px;font-style:italic}
+.sclabel{margin:4px 0 0;font-size:12.5px;color:var(--mute)}.sclabel b{color:var(--ink);font-weight:600}
+.scrow{display:grid;gap:8px;align-items:end}
+.scrow.two{grid-template-columns:1fr 1fr}
+.scrow.three{grid-template-columns:.8fr .55fr 1.3fr}
+.sctile{margin:0;display:grid;gap:5px}
+.scad .ad{width:100%;box-shadow:0 6px 16px rgba(20,30,60,.12);transition:transform .35s cubic-bezier(.2,.7,.2,1),box-shadow .35s}
+.sctile:hover .ad{transform:translateY(-3px);box-shadow:0 14px 28px rgba(20,30,60,.18)}
+.sctile figcaption{font:500 11px var(--body);color:var(--mute)}
+#cAgent,#cYou{transition:opacity .3s}
+
+/* ===== motion: subtle, everywhere it helps, off for reduced-motion ===== */
+.view.on{animation:viewIn .5s cubic-bezier(.2,.7,.2,1)}
+@keyframes viewIn{from{opacity:0;transform:translateY(10px)}}
+.view.on .dir,.view.on .stat,.view.on .two>.card{animation:rise .55s cubic-bezier(.2,.7,.2,1) both}
+.view.on .dir:nth-child(2),.view.on .stat:nth-child(2),.view.on .two>.card:nth-child(2){animation-delay:.07s}
+.view.on .dir:nth-child(3),.view.on .stat:nth-child(3){animation-delay:.14s}
+.view.on .stat:nth-child(4){animation-delay:.21s}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}}
+.card,.dir,.vc,.stat,.genrow{transition:transform .3s cubic-bezier(.2,.7,.2,1),box-shadow .3s,border-color .2s,opacity .2s}
+.dir:hover,.stat:hover{transform:translateY(-3px);box-shadow:0 20px 44px rgba(40,55,90,.10)}
+.vc:hover{transform:translateY(-2px)}
+.btn{transition:transform .18s cubic-bezier(.2,.7,.2,1),background .2s,box-shadow .25s,opacity .2s}
+.btn:hover:not([disabled]){transform:translateY(-1px);box-shadow:0 12px 26px rgba(0,0,0,.18)}
+.btn.ghost:hover:not([disabled]){box-shadow:0 6px 16px rgba(40,55,90,.08)}
+.btn:active:not([disabled]),.opt:active,.rowdl:active{transform:scale(.97)}
+.opt{transition:transform .18s,background .2s,border-color .2s,color .2s}
+.opt:hover{transform:translateY(-1px)}
+.steps button{transition:background .3s,color .3s}
+.chip{transition:background .3s,color .3s}
+.orb{background-size:180% 180%;animation:orb 9s ease-in-out infinite alternate;box-shadow:0 0 0 0 rgba(238,141,104,.35)}
+@keyframes orb{0%{background-position:0% 0%;box-shadow:0 0 0 0 rgba(238,141,104,.0)}50%{box-shadow:0 0 14px 2px rgba(238,141,104,.25)}100%{background-position:100% 100%;box-shadow:0 0 0 0 rgba(238,141,104,0)}}
+#sky{animation:drift 48s ease-in-out infinite alternate;transform-origin:50% 0}
+@keyframes drift{from{transform:translate3d(-1.2%,0,0) scale(1.06)}to{transform:translate3d(1.2%,-1%,0) scale(1.06)}}
+.log li.new{animation:logIn .4s cubic-bezier(.2,.7,.2,1) both}
+@keyframes logIn{from{opacity:0;transform:translateX(8px)}}
+.big.zoomable .ad{transition:transform .4s cubic-bezier(.2,.7,.2,1)}
+.big.zoomable:hover .ad{transform:scale(1.015)}
+.lb{animation:fadeIn .2s ease}.lbpanel{animation:pop .3s cubic-bezier(.2,.7,.2,1)}
+@keyframes fadeIn{from{opacity:0}}@keyframes pop{from{opacity:0;transform:translateY(10px) scale(.985)}}
+.toast{animation:pop .3s cubic-bezier(.2,.7,.2,1)}
+.change{animation:fadeIn .35s ease}
+.gline.run,.genrow{will-change:auto}
+@media (prefers-reduced-motion:reduce){#sky,.orb{animation:none!important}}
+html,body{overflow-x:clip}
+.dir .body>.chip{align-self:flex-start}

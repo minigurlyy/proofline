@@ -2,9 +2,9 @@ import { handler, spend, MOCK, askClaude, sleep, MODELS } from "./_lib.js";
 import { mockDirections } from "./_prompts.js";
 
 export default handler(async (b, req) => {
-  await spend(req, "ai");
+  const t = await spend(req, "ai");
   const { plan, answers = {}, hasProduct = false, hasStyle = false } = b;
-  if (MOCK) { await sleep(1100); return mockDirections(plan, hasProduct); }
+  if (MOCK || t.mock) { await sleep(1100); return mockDirections(plan, hasProduct); }
   const master = hasProduct ? `${MODELS.edit} (keeps the uploaded product photo accurate)` : `${MODELS.image} (photoreal text-to-image)`;
   return await askClaude({
     maxTokens: 5000,
