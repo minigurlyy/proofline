@@ -1,4 +1,4 @@
-import { FMT, esc, adHTML, measureContrast, renderPng, hexRgb, contrast } from "./ad.js";
+import { FMT, esc, adHTML, measureContrast, renderImage } from "./ad.js";
 import { FONT_PAIRS, loadPair } from "./fonts.js";
 import { EXAMPLE_BRIEFS } from "./examples.js";
 
@@ -28,7 +28,7 @@ function renderLog(upTo) {
   $("cAgent").textContent = "agent " + items.filter((e) => e.who === "agent").length;
   $("cYou").textContent = "you " + items.filter((e) => e.who === "you").length;
 }
-function slug(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "brand"; }
+function slug(s, words = 3) { return String(s || "").toLowerCase().split(/[,(]/)[0].replace(/[^a-z0-9]+/g, " ").trim().split(" ").slice(0, words).join("-") || "brand"; }
 const fmtsOn = () => Object.keys(FMT).filter((f) => S.formats[f]);
 
 async function api(name, body) {
@@ -129,9 +129,8 @@ $("readBrief").onclick = async () => {
     S.formats = Object.fromEntries(Object.keys(FMT).map((f) => [f, fm.includes(f)]));
     log("agent", "Structured the brief and built a brand kit" + (S.assets.length ? " from your assets" : ""));
     if (plan.questions?.length) log("agent", `Asked ${plan.questions.length} question${plan.questions.length > 1 ? "s" : ""} before starting`);
-    go(2);
-  } catch (e) { toast(e.message, 6000); log("agent", "Couldn't read the brief: " + e.message); }
-  b.disabled = false; renderBriefHint();
+    b.disabled = false; renderBriefHint(); go(2); return;
+  } catch (e) { log("agent", "Couldn't read the brief: " + e.message); b.disabled = false; renderBriefHint(); b.textContent = "Try again"; $("briefHint").textContent = "That didn't work: " + e.message; }
 };
 
 /* ---------------- 2 plan ---------------- */
@@ -169,15 +168,15 @@ $("confirmPlan").onclick = async () => {
   if (S.mode === "replay") return go(3);
   const b = $("confirmPlan"); b.disabled = true; b.textContent = "Writing directions…";
   const answers = Object.fromEntries((S.plan.questions || []).map((q) => [q.text, q.options[S.answers[q.id]]]));
-  (S.plan.questions || []).forEach((q) => log("you", `Answered: ${q.options[S.answers[q.id]]}`));
-  log("you", `Confirmed the plan: ${fmtsOn().map((f) => FMT[f].name).join(", ")}`);
   try {
     const r = await api("directions", { plan: { brief: S.plan.brief, brandKit: S.kit }, answers, hasProduct: S.assets.some((a) => a.role === "product"), hasStyle: S.assets.some((a) => a.role === "style") });
     S.directions = (r.directions || []).slice(0, 3).map((d, i) => ({ ...d, id: d.id || "ABC"[i], on: true, note: "" }));
+    (S.plan.questions || []).forEach((q) => log("you", `Answered: ${q.options[S.answers[q.id]]}`));
+    log("you", `Confirmed the plan: ${fmtsOn().map((f) => FMT[f].name).join(", ")}`);
     log("agent", "Proposed 3 directions, each with a model plan");
-    go(3);
-  } catch (e) { toast(e.message, 6000); }
-  b.disabled = false; b.textContent = "Confirm plan";
+    b.disabled = false; b.textContent = "Confirm plan";
+    go(3); return;
+  } catch (e) { log("agent", "Couldn't write the directions: " + e.message); b.disabled = false; b.textContent = "Try again"; $("planHint").textContent = "That didn't work: " + e.message; }
 };
 
 /* ---------------- 3 directions ---------------- */
@@ -286,108 +285,229 @@ $("toReview").onclick = () => { log("agent", "Sorted the review queue by risk");
 function claimQs() { return (S.plan?.questions || []).filter((q) => q.kind === "claim" && q.phrase && S.answers[q.id] != null && /not|no/i.test(q.options[S.answers[q.id]] || "")); }
 function flags(v) {
   const f = [];
+  if (v.verify && !v.verify.ok) f.push({ k: "verify", kind: "you", label: "Check the edit", msg: v.verify.msg });
   for (const q of claimQs()) if (!v.claimOK && (v.headline + " " + v.sub).toLowerCase().includes(q.phrase.toLowerCase())) f.push({ k: "claim", kind: "you", label: "Claim", msg: `"${q.phrase}" isn't confirmed yet.`, q });
   for (const x of v.aiIssues || []) f.push({ k: x.id, kind: x.kind === "fix" ? "fix" : "you", label: x.label || "Review", msg: x.msg, ai: x });
   if (v.headline.length > FMT[v.fmt].limit) f.push({ k: "length", kind: "fix", label: "Copy length", msg: `Headline is ${v.headline.length} characters; ${FMT[v.fmt].name} allows ${FMT[v.fmt].limit}.` });
   if (v.contrast != null && v.contrast < 4.5) f.push({ k: "contrast", kind: "fix", label: "Contrast", msg: `Copy measures ${v.contrast}:1 against this image. It needs 4.5:1.` });
   return f;
 }
-const risk = (v) => v.status === "approved" ? -1 : flags(v).reduce((a, x) => a + (x.kind === "you" ? 10 : 3), 0);
+const risk = (v) => v.status === "approved" ? -1 : (v.lastError ? 20 : 0) + flags(v).reduce((a, x) => a + (x.kind === "you" ? 10 : 3), 0);
 const sorted = () => [...S.variants].sort((a, b) => risk(b) - risk(a));
+
+/* history: every change is undoable */
+const SNAP = ["image", "headline", "sub", "cta", "layout", "textTone", "scrim", "version", "change", "contrast", "aiIssues", "verify", "claimOK"];
+function snapshot(v) { const o = {}; SNAP.forEach((k) => (o[k] = Array.isArray(v[k]) ? [...v[k]] : v[k])); return o; }
+function pushHistory(v) { v.history = [...(v.history || []), snapshot(v)].slice(-12); }
+function restore(v, snap) { SNAP.forEach((k) => (v[k] = snap[k])); v.status = "pending"; }
+function undo(v) {
+  const prev = v.history?.pop(); if (!prev) return;
+  const from = v.version; restore(v, prev); v.lastError = null;
+  log("you", `Undid v${from} on ${v.id}; back to v${v.version}`);
+}
+
 function renderReview() {
   const vs = S.variants; if (!vs.length) { $("grid").innerHTML = '<p class="empty">No variants yet.</p>'; $("detail").innerHTML = ""; $("rhead").innerHTML = ""; return; }
   const open = vs.filter((v) => v.status !== "approved");
-  const clean = open.filter((v) => !flags(v).length), you = open.filter((v) => flags(v).some((f) => f.kind === "you")), fix = open.filter((v) => flags(v).length && !flags(v).some((f) => f.kind === "you"));
+  const clean = open.filter((v) => !flags(v).length && !v.lastError), you = open.filter((v) => v.lastError || flags(v).some((f) => f.kind === "you")), fix = open.filter((v) => !v.lastError && flags(v).length && !flags(v).some((f) => f.kind === "you"));
   const done = vs.length - open.length, ro = S.mode === "replay";
   $("rhead").innerHTML = `<span class="chip you">${you.length} need you</span><span class="chip warn">${fix.length} agent can fix</span><span class="chip good">${clean.length} clean</span><span class="chip">${done}/${vs.length} approved</span><span style="flex:1"></span>
     ${!ro && clean.length ? `<button class="btn sm" id="okClean">Approve ${clean.length} clean</button>` : ""}${done === vs.length || ro ? `<button class="btn sm" id="toDeliver">${ro ? "Next" : "Package for handoff"}</button>` : ""}`;
   if (!S.sel || !vs.find((v) => v.id === S.sel)) S.sel = (sorted().find((v) => v.status !== "approved") || vs[0]).id;
-  $("grid").innerHTML = sorted().map((v) => { const f = flags(v), st = v.status === "approved" ? "var(--good)" : f.some((x) => x.kind === "you") ? "var(--you)" : f.length ? "var(--warn)" : "var(--line)";
+  $("grid").innerHTML = sorted().map((v) => { const f = flags(v), st = v.status === "approved" ? "var(--good)" : v.lastError ? "var(--crit)" : f.some((x) => x.kind === "you") ? "var(--you)" : f.length ? "var(--warn)" : "var(--line)";
     return `<button class="vc ${S.sel === v.id ? "sel" : ""}" data-id="${v.id}"><span class="stripe" style="background:${st}"></span><div class="thumb">${adHTML(v, S.kit, S)}</div>
     <div class="meta"><span>${v.dir} · ${FMT[v.fmt].name}${v.version > 1 ? " · v" + v.version : ""}</span>${v.status === "approved" ? '<span class="chip good">approved</span>' : ""}</div>
-    <div class="flags">${f.map((x) => `<span class="chip ${x.kind === "you" ? "you" : "warn"}">${esc(x.label)}</span>`).join("") || (v.status === "approved" ? "" : '<span class="chip good">clean</span>')}</div></button>`; }).join("");
+    <div class="flags">${v.lastError ? '<span class="chip crit">Failed</span>' : ""}${f.map((x) => `<span class="chip ${x.kind === "you" ? "you" : "warn"}">${esc(x.label)}</span>`).join("") || (v.status === "approved" || v.lastError ? "" : '<span class="chip good">clean</span>')}</div></button>`; }).join("");
   renderDetail();
   const a = $("okClean"); if (a) a.onclick = () => { clean.forEach((v) => (v.status = "approved")); log("you", `Approved ${clean.length} clean variant${clean.length > 1 ? "s" : ""} in one step`); pickNext(); renderReview(); };
   const d = $("toDeliver"); if (d) d.onclick = () => { if (!ro) log("agent", "Named the files and built the export package"); go(6); };
 }
 function pickNext() { const n = sorted().find((x) => x.status !== "approved"); if (n) S.sel = n.id; }
 $("grid").onclick = (e) => { const b = e.target.closest(".vc"); if (b) { S.sel = b.dataset.id; renderReview(); } };
+
+function flagButtons(x) {
+  if (x.k === "verify") return `<button class="opt" data-undo="1">Undo this change</button><button class="opt" data-retry-edit="1">Try again</button><button class="opt" data-okverify="1">It's right, keep it</button>`;
+  if (x.k === "claim") return `<button class="opt" data-claim="keep">Product confirmed it</button><button class="opt" data-claim="drop">Take it out of the copy</button>`;
+  if (x.k === "contrast") return `<button class="opt" data-fix="contrast">Strengthen the shade behind the copy</button>`;
+  if (x.k === "length") return `<button class="opt" data-fix="length">Shorten the headline</button>`;
+  return `<button class="opt" data-fix="${x.k}">${x.kind === "fix" ? "Fix it in the image" : "Let the agent fix it"}</button><button class="opt" data-tell="${x.k}">Tell it what to do</button><button class="opt" data-keep="${x.k}">It's fine, keep it</button>`;
+}
 function renderDetail() {
   const v = S.variants.find((x) => x.id === S.sel); if (!v) return;
   const d = S.directions.find((x) => x.id === v.dir), f = flags(v), ro = S.mode === "replay", g = S.gen[v.dir];
-  const passes = [["Must-include line", (S.plan.brief?.mandatory || []).length ? "present" : "none required"], ...(f.some((x) => x.k === "length") ? [] : [["Copy length", `${v.headline.length}/${FMT[v.fmt].limit}`]]), ...(f.some((x) => x.k === "contrast") || v.contrast == null ? [] : [["Contrast", `${v.contrast}:1`]]), ...(v.fmt === "story" ? [["Safe zones", "clear"]] : [])];
-  $("detail").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font:600 16px var(--display)">${esc(d?.name || v.dir)}</b><span class="chip">${v.id}${v.version > 1 ? " · v" + v.version : ""}</span></div>
-    <div class="big">${adHTML(v, S.kit, S, { safe: v.fmt === "story" })}</div>
+  const passes = [["Must-include line", (S.plan.brief?.mandatory || []).length ? "present" : "none required"], ...(f.some((x) => x.k === "length") ? [] : [["Copy length", `${v.headline.length}/${FMT[v.fmt].limit}`]]), ...(f.some((x) => x.k === "contrast") || v.contrast == null ? [] : [["Contrast", `${v.contrast}:1`]]), ...(v.fmt === "story" ? [["Safe zones", "clear"]] : []), ...(v.verify?.ok ? [["Edit check", "matches the request"]] : [])];
+  const prev = v.history?.length ? v.history[v.history.length - 1] : null;
+  $("detail").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font:600 16px var(--display)">${esc(d?.name || v.dir)}</b><span style="display:flex;gap:6px;align-items:center">${!ro && prev ? `<button class="rowdl" id="undoBtn" title="Go back to v${prev.version}">Undo to v${prev.version}</button>` : ""}<span class="chip">${v.id}${v.version > 1 ? " · v" + v.version : ""}</span></span></div>
+    <button class="big zoomable" id="bigAd" aria-label="Expand this ad">${adHTML(v, S.kit, S, { safe: v.fmt === "story" })}<span class="zoomhint">Click to expand${ro ? "" : " · mark an area"}</span></button>
+    ${v.lastError ? `<div class="change err"><b>Didn't work:</b> ${esc(v.lastError.msg)} Nothing was changed.<div class="opts" style="margin-top:8px"><button class="opt" data-retry="1">Try again</button><button class="opt" data-dismiss="1">Dismiss</button></div></div>` : ""}
     ${v.change ? `<div class="change">${v.change.did?.length ? `<b>v${v.version} changes:</b> ${esc(v.change.did.join("; "))}.` : "<b>No change made.</b>"}${v.change.notDone?.length ? `<br><b>Couldn't do:</b> ${esc(v.change.notDone.join("; "))}.` : ""}</div>` : ""}
-    ${v.fmt === "feed" && g?.scores?.length ? `<div class="qa"><b>Why this image:</b> ${esc(g.scores[g.best]?.why || "")} (${g.scores[g.best]?.score}/10 vs ${g.scores[1 - g.best]?.score ?? "–"}/10)</div>` : ""}
-    <ul class="checks">${f.map((x) => `<li><div class="ct"><b>${esc(x.label)}</b><span class="chip ${x.kind === "you" ? "you" : "warn"}">${x.kind === "you" ? "your call" : "agent can fix"}</span></div><span>${esc(x.msg)}</span>
-      ${ro ? "" : `<div class="opts">${x.k === "claim" ? `<button class="opt" data-claim="keep">Product confirmed it</button><button class="opt" data-claim="drop">Take it out of the copy</button>` : x.kind === "fix" ? `<button class="opt" data-fix="${x.k}">${x.k === "contrast" ? "Strengthen the shade behind the copy" : x.k === "length" ? "Shorten the headline" : "Fix it in the image"}</button>` : `<button class="opt" data-keep="${x.k}">It's fine, keep it</button>${x.ai?.fix ? `<button class="opt" data-fix="${x.k}">Fix it in the image</button>` : ""}`}</div>`}</li>`).join("")}
+    ${v.fmt === "feed" && g?.scores?.length && v.version === 1 ? `<div class="qa"><b>Why this image:</b> ${esc(g.scores[g.best]?.why || "")} (${g.scores[g.best]?.score}/10 vs ${g.scores[1 - g.best]?.score ?? "–"}/10)</div>` : ""}
+    <ul class="checks">${f.map((x) => `<li><div class="ct"><b>${esc(x.label)}</b><span class="chip ${x.kind === "you" ? "you" : "warn"}">${x.kind === "you" ? "your call" : "agent can fix"}</span></div><span>${esc(x.msg)}</span>${ro ? "" : `<div class="opts">${flagButtons(x)}</div>`}</li>`).join("")}
       ${passes.map(([a, b]) => `<li class="ok"><div class="ct"><span>${a}</span><span class="chip good">${esc(b)}</span></div></li>`).join("")}</ul>
     ${ro ? "" : `<div class="edit"><input id="hlEdit" value="${esc(v.headline)}" aria-label="Edit headline"><button class="btn ghost sm" id="saveHl">Save</button></div>
-    <textarea class="note" id="reviseNote" rows="2" placeholder="Note for the agent, e.g. replace the squares with realistic ice cubes"></textarea>
+    <textarea class="note" id="reviseNote" rows="2" placeholder="Note for the agent, e.g. remove the jar behind the headline"></textarea>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><label class="scope"><input type="checkbox" id="scopeDir"> Apply to all of direction ${v.dir}</label><button class="btn ghost sm" id="revise">Revise</button></div>
-    <button class="btn" id="approve" ${f.length || v.status === "approved" ? "disabled" : ""}>${v.status === "approved" ? "Approved" : f.length ? `Resolve ${f.length} flag${f.length > 1 ? "s" : ""} to approve` : "Approve"}</button>`}`;
+    <button class="btn" id="approve" ${f.length || v.lastError || v.status === "approved" ? "disabled" : ""}>${v.status === "approved" ? "Approved" : f.length ? `Resolve ${f.length} flag${f.length > 1 ? "s" : ""} to approve` : "Approve"}</button>`}`;
+  $("bigAd").onclick = () => openLightbox(v);
   if (ro) return;
   const D = $("detail");
+  const u = $("undoBtn"); if (u) u.onclick = () => { undo(v); renderReview(); };
+  D.querySelector("[data-undo]")?.addEventListener("click", () => { undo(v); renderReview(); });
+  D.querySelector("[data-okverify]")?.addEventListener("click", () => { v.verify = { ok: true, msg: "Kept by the designer." }; log("you", `Checked ${v.id}'s edit and kept it`); renderReview(); });
+  D.querySelector("[data-retry-edit]")?.addEventListener("click", async () => { const last = v.lastRequest; undo(v); if (last) await revise(v, last.note, false, `Asked the agent to try ${v.id} again`, null, last.marked); });
+  D.querySelector("[data-retry]")?.addEventListener("click", async () => { const e = v.lastError; v.lastError = null; await revise(v, e.note, e.whole, `Retried on ${v.id}`, e.direct, e.marked, e.issueId); });
+  D.querySelector("[data-dismiss]")?.addEventListener("click", () => { v.lastError = null; renderReview(); });
   D.querySelectorAll("[data-claim]").forEach((b) => (b.onclick = async () => {
     if (b.dataset.claim === "keep") { S.variants.forEach((x) => (x.claimOK = true)); log("you", "Confirmed the claim; cleared it on every variant"); renderReview(); }
     else { const q = f.find((x) => x.k === "claim").q; await revise(v, `Remove the claim "${q.phrase}" from the headline and sub, keeping the same voice and length.`, true, "Took the claim out of the copy"); }
   }));
-  D.querySelectorAll("[data-keep]").forEach((b) => (b.onclick = () => { v.aiIssues = v.aiIssues.filter((x) => x.id !== b.dataset.keep); log("you", `Kept ${v.id} as it is`); renderReview(); }));
+  D.querySelectorAll("[data-keep]").forEach((b) => (b.onclick = () => { pushHistory(v); v.aiIssues = v.aiIssues.filter((x) => x.id !== b.dataset.keep); log("you", `Kept ${v.id} as it is`); renderReview(); }));
+  D.querySelectorAll("[data-tell]").forEach((b) => (b.onclick = () => { const issue = v.aiIssues.find((x) => x.id === b.dataset.tell); const n = $("reviseNote"); n.value = `About "${issue.label}": `; n.focus(); n.setSelectionRange(n.value.length, n.value.length); n.scrollIntoView({ block: "center", behavior: "smooth" }); }));
   D.querySelectorAll("[data-fix]").forEach((b) => (b.onclick = async () => {
     const k = b.dataset.fix;
-    if (k === "contrast") { v.scrim = Math.min(0.92, (v.scrim ?? 0.55) + 0.15); v.contrast = await measureContrast(v, S.kit); log("you", `Accepted a stronger shade on ${v.id}`); if (v.contrast < 4.5) log("agent", `${v.id} still measures ${v.contrast}:1; try again or revise the image`); renderReview(); }
+    if (k === "contrast") { pushHistory(v); v.scrim = Math.min(0.92, (v.scrim ?? 0.55) + 0.15); v.contrast = await measureContrast(v, S.kit); log("you", `Accepted a stronger shade on ${v.id}`); if (v.contrast < 4.5) log("agent", `${v.id} still measures ${v.contrast}:1; try again or revise the image`); renderReview(); }
     else if (k === "length") await revise(v, `Shorten the headline to ${FMT[v.fmt].limit - 4} characters or fewer, same idea and voice.`, false, "Asked the agent to shorten the headline");
-    else { const issue = v.aiIssues.find((x) => x.id === k); await revise(v, issue.fix || issue.msg, false, `Asked the agent to fix: ${issue.label}`, issue.fix); v.aiIssues = v.aiIssues.filter((x) => x.id !== k); renderReview(); }
+    else { const issue = v.aiIssues.find((x) => x.id === k); await revise(v, issue.fix ? issue.fix : `Address this concern about the image: ${issue.msg}`, false, `Asked the agent to fix: ${issue.label}`, issue.kind === "fix" ? issue.fix : null, null, k); }
   }));
-  $("saveHl").onclick = async () => { const t = $("hlEdit").value.trim(); if (!t || t === v.headline) return; v.headline = t; v.edited = true; v.status = "pending"; log("you", `Edited the headline on ${v.id}`); renderReview(); };
+  $("saveHl").onclick = async () => { const t = $("hlEdit").value.trim(); if (!t || t === v.headline) return; pushHistory(v); v.headline = t; v.version++; v.change = { did: ["edited the headline by hand"], notDone: [] }; v.edited = true; v.status = "pending"; v.contrast = await measureContrast(v, S.kit).catch(() => null); log("you", `Edited the headline on ${v.id}`); renderReview(); };
   $("revise").onclick = async () => { const n = $("reviseNote").value.trim(); if (!n) return toast("Write a note first."); await revise(v, n, $("scopeDir").checked); };
   $("approve").onclick = () => { v.status = "approved"; log("you", `Approved ${v.id}`); pickNext(); renderReview(); };
 }
-async function revise(v, note, wholeDirection, logText, directImageEdit) {
+
+/* one revision request; returns true only if something actually changed */
+async function revise(v, note, wholeDirection, logText, directImageEdit, marked, issueId) {
   const targets = wholeDirection ? S.variants.filter((x) => x.dir === v.dir) : [v];
-  $("detail").classList.add("busy");
-  log("you", logText || `Asked for changes on ${wholeDirection ? "all of direction " + v.dir : v.id}: "${note}"`);
+  $("detail").classList.add("busy"); lightboxBusy(true);
+  log("you", logText || `Asked for changes on ${wholeDirection ? "all of direction " + v.dir : v.id}${marked ? " (marked area)" : ""}: "${note}"`);
+  const before = targets.map(snapshot), statuses = targets.map((x) => x.status);
   try {
     const d = S.directions.find((x) => x.id === v.dir);
-    const r = directImageEdit ? { did: ["fixed it in the image"], notDone: [], imageEdit: directImageEdit } : await api("revise", { note, variant: v, direction: d, brandKit: S.kit, image: v.image });
+    let r;
+    if (directImageEdit) r = { did: ["fixed it in the image"], notDone: [], imageEdit: directImageEdit };
+    else {
+      const preview = await renderImage(v, S.kit, S, $("stage"), "jpeg", 0.5, true).catch(() => null);
+      r = await api("revise", { note, variant: v, direction: d, brandKit: S.kit, image: v.image, preview, marked });
+    }
     const did = r.did || [], notDone = r.notDone || [];
     const changesCopy = r.copy && Object.values(r.copy).some(Boolean);
-    if (!r.imageEdit && !changesCopy && !r.layout && !r.textTone) { targets.forEach((x) => (x.change = { did: [], notDone: notDone.length ? notDone : [note] })); log("agent", `Couldn't make that change${notDone.length ? ": " + notDone.join("; ") : ""}`); return; }
+    if (!r.imageEdit && !changesCopy && !r.layout && !r.textTone) {
+      targets.forEach((x) => (x.change = { did: [], notDone: notDone.length ? notDone : [note] }));
+      log("agent", `Couldn't make that change${notDone.length ? ": " + notDone.join("; ") : ""}`);
+      return false;
+    }
     await Promise.all(targets.map(async (x) => {
+      const oldImage = x.image;
       if (r.copy?.headline) x.headline = r.copy.headline; if (r.copy?.sub) x.sub = r.copy.sub; if (r.copy?.cta) x.cta = r.copy.cta;
       if (r.layout && ["top", "bottom", "center"].includes(r.layout)) x.layout = r.layout; if (r.textTone && ["light", "dark"].includes(r.textTone)) x.textTone = r.textTone;
-      if (r.imageEdit) { const img = await genImage({ prompt: `${r.imageEdit}. Keep the composition, product, lighting and palette otherwise unchanged. No text, letters, logos or watermarks.`, fmt: x.fmt, refs: [x.image, ...productRefs()], salt: x.id + x.version }); x.image = img.image; }
-      x.version++; x.status = "pending"; x.change = { did, notDone };
+      x.verify = null;
+      if (r.imageEdit) {
+        const refs = [x.image, ...(marked && x === v ? [marked] : []), ...productRefs()];
+        const instr = `${r.imageEdit}${marked && x === v ? " The second reference image shows a red box around the area to change; change only that area and do not draw the box." : ""} Keep the composition, product, lighting and palette otherwise unchanged. No text, letters, logos or watermarks.`;
+        const img = await genImage({ prompt: instr, fmt: x.fmt, refs, salt: x.id + x.version });
+        x.image = img.image;
+        try { x.verify = await api("verify", { request: note, instruction: r.imageEdit, before: oldImage, after: x.image, marked: x === v ? marked : null }); }
+        catch { x.verify = null; }
+      }
+      x.version++; x.status = "pending"; x.change = { did, notDone }; x.lastError = null; x.lastRequest = { note, marked };
       x.contrast = await measureContrast(x, S.kit).catch(() => null);
     }));
+    targets.forEach((x, i) => { x.history = [...(x.history || []), before[i]].slice(-12); });
+    if (issueId) targets.forEach((x) => (x.aiIssues = (x.aiIssues || []).filter((y) => y.id !== issueId)));
     log("agent", `Updated ${targets.length > 1 ? targets.length + " variants" : v.id}: ${did.join("; ") || "done"}`);
     if (notDone.length) log("agent", `Couldn't do: ${notDone.join("; ")}`);
-  } catch (e) { toast(e.message, 6000); log("agent", "Revision failed: " + e.message); }
-  finally { $("detail").classList.remove("busy"); renderReview(); }
+    const bad = targets.filter((x) => x.verify && !x.verify.ok);
+    if (bad.length) log("agent", `Checked the edit: ${bad.map((x) => `${x.id}: ${x.verify.msg}`).join(" ")}`);
+    else if (r.imageEdit) log("agent", "Checked the edit against your note: it matches");
+    return true;
+  } catch (e) {
+    targets.forEach((x, i) => { restore(x, before[i]); x.status = statuses[i]; });
+    v.lastError = { msg: e.message, note, whole: wholeDirection, direct: directImageEdit, marked, issueId };
+    log("agent", `That didn't work on ${v.id}: ${e.message} Nothing was changed.`);
+    return false;
+  } finally { $("detail").classList.remove("busy"); lightboxBusy(false); renderReview(); if (LB.v === v) renderLightbox(); }
+}
+
+/* ---------------- lightbox: expand, compare versions, mark an area ---------------- */
+const LB = { v: null, mode: "ad", actual: false, viewing: null, mark: null, drawing: false };
+function openLightbox(v) { Object.assign(LB, { v, mode: "ad", actual: false, viewing: null, mark: null }); renderLightbox(); document.body.style.overflow = "hidden"; }
+function closeLightbox() { LB.v = null; $("lb")?.remove(); document.body.style.overflow = ""; }
+function lightboxBusy(on) { $("lb")?.classList.toggle("busy", on); }
+function renderLightbox() {
+  const v = LB.v; if (!v) return;
+  const ro = S.mode === "replay";
+  const versions = [...(v.history || []), snapshot(v)];
+  const shown = LB.viewing != null ? { ...v, ...versions[LB.viewing] } : v;
+  const isOld = LB.viewing != null && LB.viewing < versions.length - 1;
+  let el = $("lb"); if (!el) { el = document.createElement("div"); el.id = "lb"; el.className = "lb"; document.body.appendChild(el); }
+  const [w, h] = FMT[v.fmt].px;
+  const stageInner = LB.mode === "ad"
+    ? `<div class="lbad" style="${LB.actual ? `width:${w}px;height:${h}px` : `height:min(78vh,${h}px);aspect-ratio:${w}/${h};max-width:100%`}">${adHTML(shown, S.kit, S)}</div>`
+    : `<div class="lbimg" id="lbImgWrap"><img id="lbImg" src="${shown.image}" alt="" style="${LB.actual ? "max-width:none;max-height:none" : ""}" draggable="false">${LB.mark ? `<div class="markbox" style="left:${LB.mark.x * 100}%;top:${LB.mark.y * 100}%;width:${LB.mark.w * 100}%;height:${LB.mark.h * 100}%"></div>` : ""}</div>`;
+  el.innerHTML = `<div class="lbpanel" role="dialog" aria-modal="true" aria-label="Expanded view of ${v.id}">
+    <div class="lbbar"><b>${v.id} · ${FMT[v.fmt].name}</b>
+      <div class="opts"><button class="opt" data-m="ad" aria-pressed="${LB.mode === "ad"}">With copy</button><button class="opt" data-m="img" aria-pressed="${LB.mode === "img"}">Image only${ro ? "" : " · mark an area"}</button><button class="opt" data-actual="1" aria-pressed="${LB.actual}">Actual size</button></div>
+      <button class="lbx" id="lbClose" aria-label="Close">×</button></div>
+    <div class="lbstage ${LB.actual ? "actual" : ""}">${stageInner}</div>
+    ${versions.length > 1 ? `<div class="lbvers">${versions.map((s, i) => `<button class="lbv ${(LB.viewing ?? versions.length - 1) === i ? "on" : ""}" data-ver="${i}"><img src="${s.image}" alt=""><span>v${s.version}${i === versions.length - 1 ? " · current" : ""}</span></button>`).join("")}</div>` : ""}
+    ${!ro && isOld ? `<div class="lbfoot"><span class="hint">You're looking at v${versions[LB.viewing].version}.</span><button class="btn sm" id="lbRestore">Restore v${versions[LB.viewing].version}</button></div>` : ""}
+    ${!ro && LB.mode === "img" && !isOld ? `<div class="lbfoot">${LB.mark ? `<input id="lbNote" class="note" placeholder="What should change in the marked area? e.g. remove this jar" style="flex:1"><button class="btn sm" id="lbApply">Apply</button><button class="btn ghost sm" id="lbClear">Clear box</button>` : `<span class="hint">Drag on the image to draw a box around what you want changed.</span>`}</div>` : ""}
+  </div>`;
+  el.onclick = (e) => { if (e.target === el) closeLightbox(); };
+  $("lbClose").onclick = closeLightbox;
+  el.querySelectorAll("[data-m]").forEach((b) => (b.onclick = () => { LB.mode = b.dataset.m; renderLightbox(); }));
+  el.querySelector("[data-actual]").onclick = () => { LB.actual = !LB.actual; renderLightbox(); };
+  el.querySelectorAll("[data-ver]").forEach((b) => (b.onclick = () => { const i = +b.dataset.ver; LB.viewing = i === versions.length - 1 ? null : i; renderLightbox(); }));
+  const rs = $("lbRestore"); if (rs) rs.onclick = () => { const i = LB.viewing, target = versions[i]; v.history = (v.history || []).slice(0, i); const top = Math.max(...versions.map((x) => x.version)); pushHistory(v); restore(v, target); v.version = top + 1; v.change = { did: [`restored v${target.version}`], notDone: [] }; log("you", `Restored v${target.version} on ${v.id}`); LB.viewing = null; renderReview(); renderLightbox(); };
+  const ap = $("lbApply"); if (ap) ap.onclick = async () => { const n = $("lbNote").value.trim(); if (!n) return toast("Say what should change in the box."); const marked = await markedImage(v.image, LB.mark); LB.mark = null; await revise(v, n, false, null, null, marked); };
+  const cl = $("lbClear"); if (cl) cl.onclick = () => { LB.mark = null; renderLightbox(); };
+  const wrap = $("lbImgWrap");
+  if (wrap && !ro && !isOld) {
+    const img = $("lbImg"); let start = null;
+    const pt = (e) => { const r = img.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) }; };
+    wrap.onpointerdown = (e) => { start = pt(e); wrap.setPointerCapture(e.pointerId); };
+    wrap.onpointermove = (e) => { if (!start) return; const p = pt(e); LB.mark = { x: Math.min(start.x, p.x), y: Math.min(start.y, p.y), w: Math.abs(p.x - start.x), h: Math.abs(p.y - start.y) };
+      let b = wrap.querySelector(".markbox"); if (!b) { b = document.createElement("div"); b.className = "markbox"; wrap.appendChild(b); }
+      Object.assign(b.style, { left: LB.mark.x * 100 + "%", top: LB.mark.y * 100 + "%", width: LB.mark.w * 100 + "%", height: LB.mark.h * 100 + "%" }); };
+    wrap.onpointerup = () => { start = null; if (LB.mark && (LB.mark.w < 0.02 || LB.mark.h < 0.02)) LB.mark = null; renderLightbox(); setTimeout(() => $("lbNote")?.focus(), 0); };
+  }
+}
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && LB.v) closeLightbox(); });
+async function markedImage(src, m) {
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+  const k = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+  c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+  const x = c.getContext("2d"); x.drawImage(img, 0, 0, c.width, c.height);
+  x.strokeStyle = "#ff1f1f"; x.lineWidth = Math.max(4, c.width * 0.008);
+  x.strokeRect(m.x * c.width, m.y * c.height, m.w * c.width, m.h * c.height);
+  return c.toDataURL("image/jpeg", 0.88);
 }
 
 /* ---------------- 6 deliver ---------------- */
-function fname(v) { return `${slug(S.plan?.brief?.brand)}_${slug(S.plan?.brief?.product)}_${v.dir.toLowerCase()}_${v.fmt}-${FMT[v.fmt].ratio}_v${v.version}.png`; }
+const FMT_ORDER = ["feed", "story", "banner"];
+const ordered = () => [...S.variants].sort((a, b) => a.dir.localeCompare(b.dir) || FMT_ORDER.indexOf(a.fmt) - FMT_ORDER.indexOf(b.fmt));
+const ext = () => ($("fileType")?.value === "jpeg" ? "jpg" : "png");
+function fname(v, e = ext()) { return `${slug(S.plan?.brief?.brand, 2)}_${slug(S.plan?.brief?.product, 2)}_${v.dir.toLowerCase()}_${v.fmt}-${FMT[v.fmt].ratio}_v${v.version}.${e}`; }
 function summary() {
-  return `# ${S.plan?.brief?.brand || "Campaign"}: ${S.plan?.brief?.product || ""}\n\n${S.variants.length} approved variants\n\n` + S.variants.map((v) => `- ${fname(v)}: "${v.headline}"`).join("\n") +
+  return `# ${S.plan?.brief?.brand || "Campaign"}: ${S.plan?.brief?.product || ""}\n\n${S.variants.length} approved variants\n\n` + ordered().map((v) => `- ${fname(v)}: "${v.headline}"`).join("\n") +
     `\n\nBrand kit: ${FONT_PAIRS[S.kit.fontPair]?.name}, palette ${Object.values(S.kit.palette).join(" ")}\nAgent actions: ${S.log.filter((e) => e.who === "agent").length}. Designer decisions: ${S.log.filter((e) => e.who === "you").length}. Images generated: ${S.images}.\n`;
 }
 function renderDeliver() {
   const secs = S.duration ?? Math.round((Date.now() - S.t0) / 1000);
   if (S.mode !== "replay" && S.duration == null) S.duration = secs;
   $("stats").innerHTML = [[S.variants.length, "variants approved"], [S.log.filter((e) => e.who === "agent").length, "agent actions"], [S.log.filter((e) => e.who === "you").length, "your decisions"], [`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`, "brief to handoff"]].map(([a, b]) => `<div class="stat"><b>${a}</b><span>${b}</span></div>`).join("");
-  $("pkg").innerHTML = `<thead><tr><th>File</th><th>Direction</th><th>Format</th><th>Headline</th><th></th></tr></thead><tbody>${S.variants.map((v) => `<tr><td class="mono">${fname(v)}</td><td>${v.dir}</td><td>${FMT[v.fmt].name}</td><td>${esc(v.headline)}</td><td><button class="rowdl" data-dl="${v.id}">PNG</button></td></tr>`).join("")}</tbody>`;
+  $("pkg").innerHTML = `<thead><tr><th>File</th><th>Direction</th><th>Format</th><th>Headline</th><th></th></tr></thead><tbody>${ordered().map((v) => `<tr><td class="mono">${fname(v)}</td><td>${v.dir}</td><td>${FMT[v.fmt].name}</td><td>${esc(v.headline)}</td><td><button class="rowdl" data-dl="${v.id}">${ext().toUpperCase()}</button></td></tr>`).join("")}</tbody>`;
   $("saveRun").hidden = !(S.owner && S.mode !== "replay");
 }
 function saveBlob(name, blob) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); }
 $("pkg").onclick = async (e) => { const b = e.target.closest("[data-dl]"); if (!b) return; const v = S.variants.find((x) => x.id === b.dataset.dl); b.disabled = true; b.textContent = "…";
-  try { saveBlob(fname(v), await renderPng(v, S.kit, S, $("stage"))); } catch { toast("Couldn't render that file."); } b.disabled = false; b.textContent = "PNG"; };
+  try { saveBlob(fname(v), await renderImage(v, S.kit, S, $("stage"), ext() === "jpg" ? "jpeg" : "png")); } catch { toast("Couldn't render that file."); } b.disabled = false; b.textContent = ext().toUpperCase(); };
+$("fileType").onchange = () => renderDeliver();
 $("dlZip").onclick = async () => {
   const b = $("dlZip"); b.disabled = true;
   try {
     const zip = new window.JSZip(), dir = zip.folder(`${slug(S.plan?.brief?.brand)}_export`);
-    for (let i = 0; i < S.variants.length; i++) { b.textContent = `Rendering ${i + 1}/${S.variants.length}…`; dir.file(fname(S.variants[i]), await renderPng(S.variants[i], S.kit, S, $("stage"))); }
+    const list = ordered();
+    for (let i = 0; i < list.length; i++) { b.textContent = `Rendering ${i + 1}/${list.length}…`; dir.file(fname(list[i]), await renderImage(list[i], S.kit, S, $("stage"), ext() === "jpg" ? "jpeg" : "png")); }
     dir.file("handoff-summary.md", summary());
     b.textContent = "Zipping…"; saveBlob(`${slug(S.plan?.brief?.brand)}_export.zip`, await zip.generateAsync({ type: "blob" }));
     $("dlHint").textContent = "Downloaded."; if (S.mode !== "replay") log("you", "Downloaded the export package");
@@ -396,7 +516,7 @@ $("dlZip").onclick = async () => {
 };
 $("copySum").onclick = async () => { try { await navigator.clipboard.writeText(summary()); $("dlHint").textContent = "Summary copied."; } catch { toast("Copy was blocked by the browser."); } };
 $("saveRun").onclick = () => {
-  const run = { ...S, token: null, owner: false, mode: null, title: `${S.plan?.brief?.brand || "Run"}: ${S.plan?.brief?.product || ""}`, savedAt: new Date().toISOString() };
+  const run = { ...S, variants: S.variants.map(({ history, lastError, lastRequest, ...v }) => v), token: null, owner: false, mode: null, title: `${S.plan?.brief?.brand || "Run"}: ${S.plan?.brief?.product || ""}`, savedAt: new Date().toISOString() };
   saveBlob(`run-${slug(S.plan?.brief?.brand)}-${slug(S.plan?.brief?.product)}.json`, new Blob([JSON.stringify(run)], { type: "application/json" }));
   $("dlHint").textContent = "Saved. Add it to the examples folder to publish it as a replay (see README).";
 };

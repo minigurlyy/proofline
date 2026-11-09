@@ -108,13 +108,18 @@ export function extractJson(t) {
   if (s < 0 || e < s) throw fail(502, "The AI's answer came back in a format I couldn't read. Try again.");
   return JSON.parse(t.slice(s, e + 1));
 }
-export async function askClaude({ system, text, images = [], maxTokens = 3000 }) {
+export async function askClaude({ system, text, images = [], maxTokens = 4000 }) {
+  try { return await askClaudeOnce({ system, text, images, maxTokens }); }
+  catch (e) { if (e.status === 401 || e.status === 429) throw e; console.warn("Claude retry:", e.message); return await askClaudeOnce({ system, text, images, maxTokens: Math.round(maxTokens * 1.6) }); }
+}
+async function askClaudeOnce({ system, text, images, maxTokens }) {
   const c = await claudeClient();
   const content = [];
   for (const im of images) { const p = parseDataUrl(im.data || im); if (p) { if (im.label) content.push({ type: "text", text: im.label }); content.push({ type: "image", source: { type: "base64", ...p } }); } }
   content.push({ type: "text", text });
   const r = await c.messages.create({ model: CLAUDE_MODEL, max_tokens: maxTokens, system, messages: [{ role: "user", content }] });
   const out = r.content.filter((x) => x.type === "text").map((x) => x.text).join("");
+  if (r.stop_reason === "max_tokens") throw fail(502, "The AI's answer was cut off. Try again.");
   return extractJson(out);
 }
 
@@ -152,8 +157,10 @@ export async function falImage({ prompt, fmt, refs = [], seed }) {
     if (Number.isInteger(seed)) input.seed = seed;
   }
   let r;
-  try { r = await fal.subscribe(model, { input, logs: false }); }
-  catch (e) { console.error(e); throw fail(502, "The image model didn't respond. Try again in a moment."); }
+  for (let attempt = 0; attempt < 2 && !r; attempt++) {
+    try { r = await fal.subscribe(model, { input, logs: false }); }
+    catch (e) { console.error(e); if (attempt === 1) throw fail(502, "The image model didn't respond twice in a row. Try again in a moment."); }
+  }
   const img = r?.data?.images?.[0];
   if (!img?.url) throw fail(502, "The image model returned no image. Try a different note or try again.");
   return { image: await urlToDataUrl(img.url), model, seed: r.data.seed ?? null };

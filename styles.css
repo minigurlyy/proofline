@@ -230,3 +230,26 @@ body.record .tag,body.record #ownerChip{display:none}
 .ad .safe{position:absolute;left:0;right:0;border:1.5px dashed rgba(239,107,107,.9);background:rgba(239,107,107,.1);display:none;pointer-events:none}
 .ad .safe.t{top:0;height:14%}.ad .safe.b{bottom:0;height:20%}
 .ad.show-safe .safe{display:block}
+
+/* ===== v2.1: expand, versions, marking, errors ===== */
+.big.zoomable{border:0;cursor:zoom-in;position:relative;width:100%;font:inherit}
+.big .zoomhint{position:absolute;right:12px;bottom:12px;font:500 11.5px var(--body);color:#fff;background:rgba(0,0,0,.55);padding:4px 10px;border-radius:999px;opacity:0;transition:opacity .15s}
+.big.zoomable:hover .zoomhint,.big.zoomable:focus-visible .zoomhint{opacity:1}
+.change.err{background:#fbe9e8;color:#7d2a26}.change.err b{color:#7d2a26}
+.lb{position:fixed;inset:0;z-index:60;background:rgba(14,15,18,.72);backdrop-filter:blur(6px);display:grid;place-items:center;padding:20px}
+.lbpanel{background:#fff;border-radius:22px;max-width:min(1200px,96vw);max-height:94vh;width:100%;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+.lbbar{display:flex;align-items:center;gap:12px;padding:12px 14px 12px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.lbbar b{font:600 16px var(--display);margin-right:auto}
+.lbx{border:0;background:#f1f0ec;width:34px;height:34px;border-radius:50%;font-size:20px;line-height:1}
+.lbstage{flex:1;min-height:0;overflow:auto;background:var(--stage);display:flex;align-items:center;justify-content:center;padding:20px}
+.lbstage.actual{align-items:flex-start;justify-content:flex-start}
+.lbad{flex:none}.lbad .ad{width:100%;height:100%;border-radius:0}
+.lbimg{position:relative;display:inline-block;line-height:0;cursor:crosshair;touch-action:none;user-select:none}
+.lbimg img{max-width:100%;max-height:72vh;display:block}
+.markbox{position:absolute;border:3px solid #ff3b30;background:rgba(255,59,48,.12);border-radius:4px;pointer-events:none}
+.lbvers{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--line);overflow-x:auto}
+.lbv{border:2px solid transparent;border-radius:10px;background:#f6f5f2;padding:4px;display:grid;gap:4px;justify-items:center;font:500 11px var(--body);color:var(--mute);flex:none}
+.lbv img{height:56px;width:auto;border-radius:6px;display:block}
+.lbv.on{border-color:var(--you);color:var(--ink)}
+.lbfoot{display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
+.lb.busy .lbpanel{opacity:.6;pointer-events:none}

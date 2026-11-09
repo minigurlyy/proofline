@@ -7,6 +7,7 @@ export default handler(async (b, req) => {
   if (MOCK) { await sleep(1100); return mockDirections(plan, hasProduct); }
   const master = hasProduct ? `${MODELS.edit} (keeps the uploaded product photo accurate)` : `${MODELS.image} (photoreal text-to-image)`;
   return await askClaude({
+    maxTokens: 5000,
     system: "You are Proofline's creative director agent. You write distinct, on-brief ad concepts and plan how each one gets made. You answer with JSON only.",
     text: `PLAN:
 ${JSON.stringify(plan)}
@@ -24,7 +25,7 @@ Propose exactly 3 clearly different creative directions. Return JSON:
  "layout":"top"|"bottom"|"center",
  "textTone":"light"|"dark",
  "imagePrompt":"a detailed image-generation prompt, 60-110 words",
- "modelPlan":[["Master image","..."],["Formats","..."],["Selection","..."]]
+ "modelPlan":[["Master image","max 18 words"],["Formats","max 18 words"],["Selection","max 18 words"]]
 }]}
 Rules:
 - The headline, sub and CTA are set in code on top of the image, so the imagePrompt must ask for NO text, letters, logos or watermarks, and must leave calm negative space where the copy sits (layout "top": upper third; "bottom": lower third; "center": middle band).

@@ -72,15 +72,19 @@ export async function measureContrast(v, kit) {
 }
 
 /* ---- export ---- */
-export async function renderPng(v, kit, run, stage) {
+export async function renderPng(v, kit, run, stage) { return renderImage(v, kit, run, stage, "png", 1); }
+export async function renderImage(v, kit, run, stage, type = "png", scale = 1, asDataUrl = false) {
   const [w, h] = FMT[v.fmt].px;
   stage.innerHTML = `<div style="width:${w}px;height:${h}px">${adHTML(v, kit, run)}</div>`;
   const node = stage.firstElementChild.firstElementChild;
   node.style.width = w + "px"; node.style.height = h + "px"; node.style.borderRadius = "0";
   await document.fonts.ready;
   await Promise.all([...node.querySelectorAll("img")].map((i) => i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; })));
-  const blob = await window.htmlToImage.toBlob(node, { width: w, height: h, pixelRatio: 1, cacheBust: false });
+  const opts = { width: w, height: h, pixelRatio: scale, cacheBust: false, quality: 0.9, backgroundColor: "#ffffff" };
+  const out = asDataUrl ? await window.htmlToImage.toJpeg(node, { ...opts, quality: 0.82 })
+    : type === "jpeg" ? await (await fetch(await window.htmlToImage.toJpeg(node, opts))).blob()
+    : await window.htmlToImage.toBlob(node, opts);
   stage.innerHTML = "";
-  return blob;
+  return out;
 }
 export { FONT_PAIRS };
