@@ -508,7 +508,7 @@ function renderDeliver() {
   const secs = S.duration ?? Math.round((Date.now() - S.t0) / 1000);
   if (S.mode !== "replay" && S.duration == null) S.duration = secs;
   $("stats").innerHTML = [[S.variants.length, "ads approved"], [S.log.filter((e) => e.who === "agent").length, "steps we handled"], [S.log.filter((e) => e.who === "you").length, "decisions you made"], [`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`, "brief to finished ads"]].map(([a, b]) => `<div class="stat"><b>${a}</b><span>${b}</span></div>`).join("");
-  $("pkg").innerHTML = `<thead><tr><th>File</th><th>Direction</th><th>Format</th><th>Headline</th><th></th></tr></thead><tbody>${ordered().map((v) => `<tr><td class="mono">${fname(v)}</td><td>${v.dir}</td><td>${FMT[v.fmt].name}</td><td>${esc(v.headline)}</td><td><button class="rowdl" data-dl="${v.id}">${ext().toUpperCase()}</button></td></tr>`).join("")}</tbody>`;
+  $("pkg").innerHTML = `<thead><tr><th>File</th><th>Idea</th><th>Size</th><th>Headline</th><th></th></tr></thead><tbody>${ordered().map((v) => `<tr><td class="mono">${fname(v)}</td><td>${v.dir}</td><td>${FMT[v.fmt].name}</td><td>${esc(v.headline)}</td><td><button class="rowdl" data-dl="${v.id}">${ext().toUpperCase()}</button></td></tr>`).join("")}</tbody>`;
   $("saveRun").hidden = !(S.owner && S.mode !== "replay");
 }
 function saveBlob(name, blob) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); }

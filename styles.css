@@ -339,3 +339,10 @@ textarea.needs,.drop.needs{border-color:var(--you)}
   #sky,.orb,.gline.run .dot,.cand.wait{animation:none!important}
   .dir:hover,.stat:hover,.vc:hover,.btn:hover,.opt:hover,.opt:active,.btn:active,.sctile:hover .ad,.sctile:hover img,.big.zoomable:hover .ad,.drop:hover .dropicon{transform:none!important}
 }
+header{flex-wrap:nowrap;gap:10px}
+.steps{flex-wrap:nowrap}
+.steps button{padding:8px 11px}
+.toolbar{flex:none}
+@media (max-width:1500px){header .tag{display:none}}
+@media (max-width:1180px){.steps button{padding:7px 8px;font-size:12.5px}.steps .n{display:none}}
+@media (max-width:900px){header{flex-wrap:wrap}.steps{flex-wrap:wrap}}
