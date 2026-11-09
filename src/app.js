@@ -60,6 +60,9 @@ function setModeChip(s) {
   c.textContent = s.owner ? "Live · owner" : s.left != null ? `Live · ${s.left} free run${s.left === 1 ? "" : "s"} left today` : "Live";
 }
 
+function pointTo(el) { if (!el) return; el.scrollIntoView({ block: "center", behavior: "smooth" }); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+const NUDGE = '<span class="nudge" aria-hidden="true">→</span>';
+
 /* ---------------- steps ---------------- */
 function renderSteps() {
   $("steps").innerHTML = STEPS.map(([n, w], i) => `<button ${i + 1 > S.maxStep ? "disabled" : ""} class="${S.step === i + 1 ? "on" : ""}" data-s="${i + 1}" aria-current="${S.step === i + 1 ? "step" : "false"}"><span class="n">${i + 1}</span>${n}<i class="who ${w}"></i></button>`).join("");
@@ -85,7 +88,7 @@ function renderBrief() {
 }
 function renderBriefHint() {
   const ok = S.brief.trim().length >= 20;
-  $("readBrief").disabled = !ok && S.mode !== "replay";
+  $("readBrief").disabled = false; $("readBrief").classList.toggle("wait", !ok && S.mode !== "replay");
   $("readBrief").textContent = S.mode === "replay" ? "Next" : "Create a plan";
   $("briefHint").textContent = S.mode === "replay" ? "This is a recorded example run." : ok ? "Next, you'll check our plan before anything is made." : "Paste a brief or pick an example to start.";
 }
@@ -122,6 +125,7 @@ drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); addFil
 
 $("readBrief").onclick = async () => {
   if (S.mode === "replay") return go(2);
+  if (S.brief.trim().length < 20) { $("brief").focus(); pointTo($("brief").closest(".card")); return; }
   const b = $("readBrief"); b.disabled = true; b.textContent = "Reading your brief…";
   if (!(await ensureSession())) { b.disabled = false; b.textContent = "Create a plan"; return; }
   S.t0 = Date.now(); S.log = []; S.maxStep = 1; S.plan = null; S.directions = []; S.gen = {}; S.variants = [];
@@ -154,12 +158,14 @@ function renderPlan() {
     <span class="fontprev" style="font-family:'${pair.display}';font-weight:${pair.dw};font-style:${pair.ds}">${esc(k.name || p.brief?.brand || "Aa")}</span></div>
     ${hasLogo ? `<div class="fontsel"><span class="hint">Logo color</span><select id="logoColor" ${ro ? "disabled" : ""}><option value="auto" ${k.logoColor !== "original" ? "selected" : ""}>Match the copy (white or black)</option><option value="original" ${k.logoColor === "original" ? "selected" : ""}>Original colors</option></select></div>` : ""}
     <p class="hint" style="margin:12px 0 0">${esc(k.voice || "")}${k.source ? ` · <i>${esc(k.source)}</i>` : ""}</p>`;
-  $("questions").innerHTML = (p.questions || []).map((q) => `<div class="q"><p><span class="chip ${q.kind === "claim" ? "warn" : "agent"}">${q.kind}</span> ${esc(q.text)}</p><div class="opts">${q.options.map((o, i) => `<button class="opt" data-q="${q.id}" data-i="${i}" aria-pressed="${S.answers[q.id] === i}" ${ro ? "disabled" : ""}>${esc(o)}</button>`).join("")}</div></div>`).join("");
-  $("fmtOpts").innerHTML = Object.entries(FMT).map(([f, d]) => `<button class="opt" data-f="${f}" aria-pressed="${!!S.formats[f]}" ${ro ? "disabled" : ""}>${d.name}</button>`).join("");
+  $("questions").innerHTML = (p.questions || []).map((q) => `<div class="q ${!ro && S.answers[q.id] == null ? "needs" : ""}" id="q-${q.id}"><p><span class="chip ${q.kind === "claim" ? "warn" : "agent"}">${q.kind}</span> ${esc(q.text)}</p><div class="opts">${!ro && S.answers[q.id] == null ? NUDGE : ""}${q.options.map((o, i) => `<button class="opt" data-q="${q.id}" data-i="${i}" aria-pressed="${S.answers[q.id] === i}" ${ro ? "disabled" : ""}>${esc(o)}</button>`).join("")}</div></div>`).join("");
+  $("fmtOpts").closest(".q").classList.toggle("needs", !ro && !fmtsOn().length);
+  $("fmtOpts").innerHTML = (!ro && !fmtsOn().length ? NUDGE : "") + Object.entries(FMT).map(([f, d]) => `<button class="opt" data-f="${f}" aria-pressed="${!!S.formats[f]}" ${ro ? "disabled" : ""}>${d.name}</button>`).join("");
   const unanswered = (p.questions || []).filter((q) => S.answers[q.id] == null).length;
-  $("confirmPlan").disabled = !ro && (unanswered > 0 || !fmtsOn().length);
+  $("confirmPlan").disabled = false; $("confirmPlan").classList.toggle("wait", !ro && (unanswered > 0 || !fmtsOn().length));
   $("confirmPlan").textContent = ro ? "Next" : "Show me directions";
-  $("planHint").textContent = ro ? "" : unanswered ? `Answer ${unanswered} question${unanswered > 1 ? "s" : ""} to continue.` : !fmtsOn().length ? "Keep at least one format." : "Looks right? Next you'll see three ideas.";
+  $("planHint").innerHTML = ro ? "" : unanswered ? `<button class="jump" id="jumpQ">Answer ${unanswered} question${unanswered > 1 ? "s" : ""} above</button> to continue.` : !fmtsOn().length ? "Pick at least one ad size." : "Looks right? Next you'll see three ideas.";
+  const j = $("jumpQ"); if (j) j.onclick = () => pointTo(document.querySelector("#questions .q.needs"));
 }
 $("kit").oninput = (e) => { const key = e.target.dataset.pal; if (key) { S.kit.palette[key] = e.target.value; } };
 $("kit").onchange = (e) => {
@@ -171,6 +177,7 @@ $("questions").onclick = (e) => { const b = e.target.closest("[data-q]"); if (!b
 $("fmtOpts").onclick = (e) => { const b = e.target.closest("[data-f]"); if (!b) return; S.formats[b.dataset.f] = !S.formats[b.dataset.f]; renderPlan(); };
 $("confirmPlan").onclick = async () => {
   if (S.mode === "replay") return go(3);
+  const need = document.querySelector("#v2 .q.needs"); if (need) return pointTo(need);
   const b = $("confirmPlan"); b.disabled = true; b.textContent = "Coming up with ideas…";
   const answers = Object.fromEntries((S.plan.questions || []).map((q) => [q.text, q.options[S.answers[q.id]]]));
   try {
@@ -195,7 +202,7 @@ function renderDirs() {
     <textarea class="note" data-note="${d.id}" rows="2" placeholder="Optional note, e.g. warmer light, more space around the product" ${ro ? "readonly" : ""}>${esc(d.note)}</textarea>
     <div class="row"><label class="toggle"><input type="checkbox" data-on="${d.id}" ${d.on ? "checked" : ""} ${ro ? "disabled" : ""}> Include</label><span class="chip">text ${d.layout === "center" ? "in the middle" : "at the " + esc(d.layout)}</span></div></div></article>`).join("");
   const n = S.directions.filter((d) => d.on).length, f = fmtsOn().length;
-  $("genBtn").disabled = !ro && !n;
+  $("genBtn").disabled = false; $("genBtn").classList.toggle("wait", !ro && !n);
   $("genBtn").textContent = ro ? "Next" : n ? `Make ${n * f} ads` : "Pick at least one idea";
   $("genHint").textContent = ro ? "" : n ? `${n} idea${n > 1 ? "s" : ""} × ${f} size${f > 1 ? "s" : ""}` : "";
 }
@@ -204,6 +211,7 @@ $("dirs").oninput = (e) => { const id = e.target.dataset.note; if (id) S.directi
 $("genBtn").onclick = () => {
   if (S.mode === "replay") return go(4);
   const on = S.directions.filter((d) => d.on);
+  if (!on.length) return pointTo($("dirs"));
   log("you", `You picked idea${on.length > 1 ? "s" : ""} ${on.map((d) => d.id).join(", ")}`);
   on.filter((d) => d.note.trim()).forEach((d) => log("you", `You added a note to ${d.id}: "${d.note.trim()}"`));
   S.gen = {}; S.variants = [];
@@ -561,28 +569,16 @@ async function autoplay() {
 document.addEventListener("click", (e) => { if (S.mode === "replay" && e.isTrusted && e.target.closest("main,#steps")) playing++; }, true);
 
 /* ---------------- example panel (before a run) ---------------- */
-const SAMPLE = {
-  kit: { name: "Halcyon Tea", fontPair: "fraunces-inter", logoColor: "auto", palette: { bg: "#123f3c", ink: "#0b2826", light: "#f5f0e6", accent: "#f0a43a", accent2: "#d6eadf" } },
-  run: { assets: [], plan: { brief: { brand: "Halcyon Tea", mandatory: ["Offer ends May 19."] } } },
-  ideas: [
-    { label: "Idea A · a calm still life", v: { fmt: "feed", headline: "Cold brew. Eight minutes.", sub: "No machine, just your fridge.", cta: "Pre-order · 15% off", layout: "top", textTone: "dark", scrim: 0 } },
-    { label: "Idea B · the fridge as the hero", v: { fmt: "feed", headline: "Let the fridge do it.", sub: "Café-quality cold brew at home.", cta: "Pre-order", layout: "bottom", textTone: "light", scrim: 0 } },
-  ],
-};
 async function renderShowcase() {
-  let data = SAMPLE;
-  try { const r = await fetch("/examples/showcase.json", { cache: "no-store" }); if (r.ok) data = { ...SAMPLE, ...(await r.json()) }; } catch {}
-  const a = data.ideas[0].v;
-  const sizes = ["feed", "story", "banner"].map((f) => ({ ...a, ...(data.sizes?.[f] || {}), fmt: f }));
-  const tile = (v, cap) => `<figure class="sctile"><div class="scad">${adHTML(v, data.kit, data.run)}</div><figcaption>${esc(cap)}</figcaption></figure>`;
+  const img = (src, cap) => `<figure class="sctile"><img src="/examples/showcase/${src}.jpg" alt="${esc(cap)} example ad" loading="lazy"><figcaption>${esc(cap)}</figcaption></figure>`;
   $("showcase").innerHTML = `<span class="eyebrow">Example</span><h3 class="sch">One brief, a full set of ads</h3>
     <blockquote class="scbrief">"Halcyon Tea is launching Cold Steep, a cold-brew tea line… café-quality in 8 minutes. Tone: calm, crisp, a little witty."</blockquote>
     <p class="sclabel"><b>Different ideas.</b> Each one is its own concept, with its own headline and look.</p>
-    <div class="scrow two">${data.ideas.map((x) => tile(x.v, x.label)).join("")}</div>
+    <div class="scrow two">${img("a-feed", "Idea A · calm still life")}${img("c-feed", "Idea C · citrus flat lay")}</div>
     <p class="sclabel"><b>Every size.</b> The idea you pick is resized to fit each place it runs.</p>
-    <div class="scrow three">${sizes.map((v) => tile(v, FMT[v.fmt].name)).join("")}</div>
+    <div class="scrow three">${img("b-feed", "Feed 4:5")}${img("b-story", "Story 9:16")}${img("b-banner", "Banner 1.91:1")}</div>
     <button class="btn ghost sm" id="scTry">Try this brief</button>`;
-  $("scTry").onclick = () => { if (S.mode === "replay") return; $("brief").value = EXAMPLE_BRIEFS[0].brief; S.brief = $("brief").value; renderBrief(); $("brief").focus(); };
+  $("scTry").onclick = () => { if (S.mode === "replay") return; $("brief").value = EXAMPLE_BRIEFS[0].brief; S.brief = $("brief").value; renderBrief(); pointTo($("readBrief")); };
 }
 
 /* ---------------- sky ---------------- */
