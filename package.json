@@ -1,0 +1,17 @@
+{
+  "name": "proofline",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Brief to on-brand ad variants: an agent workflow with designer checkpoints.",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs",
+    "dev:mock": "MOCK=1 node scripts/dev-server.mjs"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "@fal-ai/client": "^1.10.1",
+    "@upstash/redis": "^1.41.0"
+  }
+}
